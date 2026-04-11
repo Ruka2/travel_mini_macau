@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FA Agent - 智能地图助手</title>
+    <link rel="icon" type="image/svg+xml" href="minimacau3d/images/favicon.svg">
+    <!-- Font Awesome -->
+    <script src="https://kit.fontawesome.com/fdebb7a589.js" crossorigin="anonymous"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: #1a1a1a;
+            color: #fff;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* ========== 主布局 ========== */
+        .main-container {
+            display: flex;
+            height: 100vh;
+            width: 100vw;
+        }
+
+        /* ========== 左侧地图区域 ========== */
+        .map-section {
+            flex: 1;
+            position: relative;
+            min-width: 50%;
+            height: 100%;
+        }
+
+        .map-iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+
+        .map-resize-handle {
+            position: absolute;
+            right: 0;
+            top: 0;
+            bottom: 0;
+            width: 6px;
+            cursor: col-resize;
+            background: linear-gradient(90deg, transparent, rgba(90, 138, 198, 0.3), transparent);
+            z-index: 100;
+            transition: background 0.3s;
+        }
+
+        .map-resize-handle:hover {
+            background: linear-gradient(90deg, transparent, rgba(90, 138, 198, 0.6), transparent);
+        }
+
+        /* ========== 右侧对话区域 ========== */
+        .chat-section {
+            width: 450px;
+            min-width: 350px;
+            max-width: 600px;
+            background: linear-gradient(180deg, #1e1e1e 0%, #252525 100%);
+            display: flex;
+            flex-direction: column;
+            border-left: 1px solid #333;
+            box-shadow: -5px 0 20px rgba(0, 0, 0, 0.3);
+        }
+
+        /* ========== 对话头部 ========== */
+        .chat-header {
+            padding: 15px 20px;
+            background: linear-gradient(135deg, #2a2a2a 0%, #333 100%);
+            border-bottom: 1px solid #444;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .chat-header-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .chat-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #5A8AC6 0%, #3d5a80 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            box-shadow: 0 2px 8px rgba(90, 138, 198, 0.4);
+        }
+
+        .chat-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #fff;
+        }
+
+        .chat-subtitle {
+            font-size: 12px;
+            color: #888;
+            margin-top: 2px;
+        }
+
+        .chat-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .chat-action-btn {
+            width: 32px;
+            height: 32px;
+            border: none;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            color: #aaa;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+
+        .chat-action-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+            color: #fff;
+        }
+
+        /* ========== 消息列表 ========== */
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .chat-messages::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .chat-messages::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .chat-messages::-webkit-scrollbar-thumb {
+            background-color: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+        }
+
+        .chat-messages::-webkit-scrollbar-thumb:hover {
+            background-color: rgba(255, 255, 255, 0.2);
+        }
+
+        /* ========== 消息气泡 ========== */
+        .message {
+            display: flex;
+            flex-direction: column;
+            max-width: 85%;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .message-user {
+            align-self: flex-end;
+        }
+
+        .message-agent {
+            align-self: flex-start;
+        }
+
+        .message-sender {
+            font-size: 11px;
+            color: #888;
+            margin-bottom: 4px;
+            padding: 0 4px;
+        }
+
+        .message-content {
+            padding: 12px 16px;
+            border-radius: 16px;
+            font-size: 14px;
+            line-height: 1.5;
+            word-wrap: break-word;
+            position: relative;
+        }
+
+        .message-user .message-content {
+            background: linear-gradient(135deg, #5A8AC6 0%, #3d5a80 100%);
+            color: #fff;
+            border-bottom-right-radius: 4px;
+            box-shadow: 0 2px 8px rgba(90, 138, 198, 0.3);
+        }
+
+        /* ========== Agent思考气泡 ========== */
+        .message-thinking {
+            background: #2a2a2a !important;
+            border: 1px solid #3a3a3a;
+            color: #aaa;
+            border-bottom-left-radius: 4px;
+        }
+
+        .thinking-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            user-select: none;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #3a3a3a;
+            margin-bottom: 8px;
+        }
+
+        .thinking-icon {
+            width: 16px;
+            height: 16px;
+            border: 2px solid #5A8AC6;
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        .thinking-icon.completed {
+            animation: none;
+            border: none;
+            width: auto;
+            height: auto;
+        }
+
+        .thinking-icon.completed::after {
+            content: "✓";
+            color: #4CAF50;
+            font-weight: bold;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .thinking-status {
+            font-size: 12px;
+            color: #5A8AC6;
+            font-weight: 500;
+        }
+
+        .thinking-toggle {
+            margin-left: auto;
+            font-size: 12px;
+            color: #666;
+            transition: transform 0.3s;
+        }
+
+        .thinking-toggle.collapsed {
+            transform: rotate(-90deg);
+        }
+
+        .thinking-content {
+            font-size: 12px;
+            line-height: 1.6;
+            color: #999;
+            max-height: 300px;
+            overflow-y: auto;
+            transition: max-height 0.3s ease, opacity 0.3s ease;
+        }
+
+        .thinking-content.collapsed {
+            max-height: 0;
+            opacity: 0;
+            overflow: hidden;
+        }
+
+        .thinking-section {
+            margin-bottom: 10px;
+            padding: 8px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 6px;
+        }
+
+        .thinking-section-label {
+            font-size: 10px;
+            color: #5A8AC6;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+            font-weight: 600;
+        }
+
+        .thinking-section-content {
+            color: #bbb;
+            white-space: pre-wrap;
+            font-family: "SF Mono", Monaco, "Cascadia Code", monospace;
+            font-size: 11px;
+        }
+
+        /* ========== Agent回答气泡 ========== */
+        .message-answer {
+            background: linear-gradient(135deg, #363636 0%, #2a2a2a 100%);
+            border: 1px solid #444;
+            color: #fff;
+            border-bottom-left-radius: 4px;
+        }
+
+        .typing-cursor {
+            display: inline-block;
+            width: 2px;
+            height: 1.2em;
+            background: #5A8AC6;
+            animation: blink 1s infinite;
+            vertical-align: text-bottom;
+            margin-left: 2px;
+        }
+
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0; }
+        }
+
+        /* ========== 输入区域 ========== */
+        .chat-input-area {
+            padding: 15px 20px 20px;
+            background: #252525;
+            border-top: 1px solid #333;
+        }
+
+        .input-container {
+            display: flex;
+            gap: 10px;
+            align-items: flex-end;
+            background: #2a2a2a;
+            border: 1px solid #3a3a3a;
+            border-radius: 20px;
+            padding: 8px 12px;
+            transition: border-color 0.3s, box-shadow 0.3s;
+        }
+
+        .input-container:focus-within {
+            border-color: #5A8AC6;
+            box-shadow: 0 0 0 2px rgba(90, 138, 198, 0.2);
+        }
+
+        .chat-input {
+            flex: 1;
+            border: none;
+            background: transparent;
+            color: #fff;
+            font-size: 14px;
+            line-height: 1.5;
+            resize: none;
+            outline: none;
+            max-height: 120px;
+            min-height: 24px;
+            font-family: inherit;
+        }
+
+        .chat-input::placeholder {
+            color: #666;
+        }
+
+        .send-btn {
+            width: 32px;
+            height: 32px;
+            border: none;
+            background: linear-gradient(135deg, #5A8AC6 0%, #3d5a80 100%);
+            border-radius: 50%;
+            color: #fff;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.2s, box-shadow 0.2s;
+            flex-shrink: 0;
+        }
+
+        .send-btn:hover:not(:disabled) {
+            transform: scale(1.05);
+            box-shadow: 0 2px 8px rgba(90, 138, 198, 0.4);
+        }
+
+        .send-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* ========== 欢迎消息 ========== */
+        .welcome-message {
+            text-align: center;
+            padding: 40px 20px;
+            color: #666;
+        }
+
+        .welcome-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+
+        .welcome-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #888;
+        }
+
+        .welcome-subtitle {
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        /* ========== 系统消息 ========== */
+        .system-message {
+            align-self: center;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 6px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            color: #888;
+        }
+
+        /* ========== 响应式 ========== */
+        @media (max-width: 768px) {
+            .main-container {
+                flex-direction: column;
+            }
+            
+            .map-section {
+                height: 50%;
+                min-width: auto;
+            }
+            
+            .chat-section {
+                width: 100%;
+                height: 50%;
+                min-width: auto;
+                max-width: none;
+            }
+            
+            .map-resize-handle {
+                display: none;
+            }
+        }
+
+        /* ========== 加载动画 ========== */
+        .loading-dots {
+            display: inline-flex;
+            gap: 4px;
+        }
+
+        .loading-dots span {
+            width: 6px;
+            height: 6px;
+            background: #5A8AC6;
+            border-radius: 50%;
+            animation: bounce 1.4s ease-in-out infinite both;
+        }
+
+        .loading-dots span:nth-child(1) { animation-delay: -0.32s; }
+        .loading-dots span:nth-child(2) { animation-delay: -0.16s; }
+
+        @keyframes bounce {
+            0%, 80%, 100% { transform: scale(0); }
+            40% { transform: scale(1); }
+        }
+    </style>
+</head>
+<body>
+    <div class="main-container">
+        <!-- 左侧地图区域 -->
+        <div class="map-section" id="mapSection">
+            <iframe class="map-iframe" src="/map/index.html" id="mapFrame"></iframe>
+            <div class="map-resize-handle" id="resizeHandle"></div>
+        </div>
+
+        <!-- 右侧对话区域 -->
+        <div class="chat-section" id="chatSection">
+            <!-- 头部 -->
+            <div class="chat-header">
+                <div class="chat-header-left">
+                    <div class="chat-avatar">
+                        <i class="fas fa-robot"></i>
+                    </div>
+                    <div>
+                        <div class="chat-title">出行助手</div>
+                        <div class="chat-subtitle">智能导游 · 实时地图</div>
+                    </div>
+                </div>
+                <div class="chat-actions">
+                    <button class="chat-action-btn" id="clearBtn" title="清空对话">
+                        <i class="fas fa-trash-alt"></i>
+                    </button>
+                    <button class="chat-action-btn" id="settingsBtn" title="设置">
+                        <i class="fas fa-cog"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- 消息列表 -->
+            <div class="chat-messages" id="chatMessages">
+                <div class="welcome-message">
+                    <div class="welcome-icon">🗺️</div>
+                    <div class="welcome-title">欢迎使用智能地图助手</div>
+                    <div class="welcome-subtitle">
+                        我可以帮您查询路线、推荐景点、查找餐厅<br>
+                        左侧地图会同步显示查询结果
+                    </div>
+                </div>
+            </div>
+
+            <!-- 输入区域 -->
+            <div class="chat-input-area">
+                <div class="input-container">
+                    <textarea 
+                        class="chat-input" 
+                        id="chatInput" 
+                        placeholder="输入消息... (Enter发送, Shift+Enter换行)"
+                        rows="1"
+                    ></textarea>
+                    <button class="send-btn" id="sendBtn">
+                        <i class="fas fa-paper-plane"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="static/chat.js"></script>
+</body>
+</html>
