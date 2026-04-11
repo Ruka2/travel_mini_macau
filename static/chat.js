@@ -1,5 +1,5 @@
 /**
- * FA Agent 对话界面控制器 (支持LUI地图交互)
+ * FA Agent 对话界面控制器
  * 处理SSE流式输出、消息解析和UI渲染
  */
 
@@ -20,9 +20,6 @@ class ChatController {
             tool_call: '',
             tool_response: ''
         };
-        
-        // LUI命令队列
-        this.pendingLuiCommands = [];
         
         this.init();
     }
@@ -78,9 +75,6 @@ class ChatController {
         this.thinkingContent = { think: '', tool_call: '', tool_response: '' };
         this.currentThinkingBubble = null;
         this.currentAnswerBubble = null;
-        
-        // 清空待处理LUI命令
-        this.pendingLuiCommands = [];
         
         // 发送请求
         await this.streamAgentResponse(message);
@@ -211,18 +205,6 @@ class ChatController {
     }
 
     /**
-     * 执行LUI命令
-     */
-    executeLuiCommand(command) {
-        console.log('执行LUI命令:', command);
-        
-        // 通过MapController发送给地图
-        if (window.mapController) {
-            window.mapController.sendCommand('lui', command);
-        }
-    }
-
-    /**
      * 流式获取Agent响应
      */
     async streamAgentResponse(message) {
@@ -290,9 +272,6 @@ class ChatController {
                 const cursor = this.currentAnswerBubble.querySelector('.typing-cursor');
                 if (cursor) cursor.remove();
             }
-            
-            // 执行所有待处理的LUI命令
-            this.processPendingLuiCommands();
         }
     }
 
@@ -337,18 +316,8 @@ class ChatController {
                     this.scrollToBottom();
                     break;
                     
-                case 'lui':
-                    // LUI命令 - 缓存等待执行
-                    if (event.command) {
-                        this.pendingLuiCommands.push(event.command);
-                    }
-                    break;
-                    
                 case 'done':
                     // 完成
-                    if (event.lui_commands) {
-                        this.pendingLuiCommands = event.lui_commands;
-                    }
                     break;
                     
                 case 'error':
@@ -358,16 +327,6 @@ class ChatController {
         } catch (e) {
             console.error('Parse event error:', e, data);
         }
-    }
-
-    /**
-     * 处理待执行的LUI命令
-     */
-    processPendingLuiCommands() {
-        for (const cmd of this.pendingLuiCommands) {
-            this.executeLuiCommand(cmd);
-        }
-        this.pendingLuiCommands = [];
     }
 
     /**
@@ -404,11 +363,6 @@ class ChatController {
         this.currentThinkingBubble = null;
         this.currentAnswerBubble = null;
         this.thinkingContent = { think: '', tool_call: '', tool_response: '' };
-        this.pendingLuiCommands = [];
-
-        // 发送清除命令到地图
-        this.executeLuiCommand({ type: 'attractions', action: 'clear' });
-        this.executeLuiCommand({ type: 'route', action: 'clear' });
 
         // 通知后端清空会话
         try {
@@ -451,8 +405,6 @@ class ChatController {
 class MapController {
     constructor() {
         this.iframe = document.getElementById('mapFrame');
-        this.messageQueue = [];
-        this.isMapReady = false;
         this.init();
     }
 
@@ -461,53 +413,23 @@ class MapController {
         window.addEventListener('message', (e) => {
             this.handleMapMessage(e.data);
         });
-        
-        // 定期检查地图是否准备好
-        this.checkMapReady();
-    }
-
-    checkMapReady() {
-        // 发送ping检查地图是否加载完成
-        this.sendCommand('ping', {});
-        
-        if (!this.isMapReady) {
-            setTimeout(() => this.checkMapReady(), 1000);
-        }
     }
 
     handleMapMessage(data) {
-        if (typeof data === 'object') {
-            if (data.type === 'pong') {
-                this.isMapReady = true;
-                // 发送队列中的消息
-                while (this.messageQueue.length > 0) {
-                    const msg = this.messageQueue.shift();
-                    this.sendMessage(msg);
-                }
-            }
-        }
+        // 处理地图发送的消息
+        console.log('Map message:', data);
     }
 
     /**
      * 向地图发送命令
      */
     sendCommand(command, params) {
-        const message = {
-            type: 'command',
-            command: command,
-            params: params
-        };
-        
-        if (this.isMapReady) {
-            this.sendMessage(message);
-        } else {
-            this.messageQueue.push(message);
-        }
-    }
-
-    sendMessage(message) {
         if (this.iframe && this.iframe.contentWindow) {
-            this.iframe.contentWindow.postMessage(message, '*');
+            this.iframe.contentWindow.postMessage({
+                type: 'command',
+                command: command,
+                params: params
+            }, '*');
         }
     }
 
