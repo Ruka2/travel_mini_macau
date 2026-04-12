@@ -694,6 +694,10 @@ class MapController {
      * @param {String} mode - 交通方式 walking|driving|transit
      */
     showRoute(from, to, mode = 'walking') {
+        // 【修复】显示路线前先清除地点推荐的高亮和面板，避免路线弹窗背后有推荐窗口
+        console.log('[MapController] Clearing highlights before showing route');
+        this.clearHighlights();
+        
         this.sendCommand('showRoute', {
             from: {
                 name: from.name,
