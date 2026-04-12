@@ -1,6 +1,7 @@
 /**
  * FA Agent 对话界面控制器
  * 处理SSE流式输出、消息解析和UI渲染
+ * 支持UI动作指令操控地图界面
  */
 
 class ChatController {
@@ -20,6 +21,9 @@ class ChatController {
             tool_call: '',
             tool_response: ''
         };
+        
+        // UI动作队列
+        this.pendingUIActions = [];
         
         this.init();
     }
@@ -75,6 +79,7 @@ class ChatController {
         this.thinkingContent = { think: '', tool_call: '', tool_response: '' };
         this.currentThinkingBubble = null;
         this.currentAnswerBubble = null;
+        this.pendingUIActions = [];
         
         // 发送请求
         await this.streamAgentResponse(message);
@@ -120,6 +125,10 @@ class ChatController {
                     <div id="toolResponseSection" style="display:none">
                         <div class="thinking-section-label">工具响应</div>
                         <div class="thinking-section-content" id="toolResponseText"></div>
+                    </div>
+                    <div id="uiActionSection" style="display:none">
+                        <div class="thinking-section-label">地图操作</div>
+                        <div class="thinking-section-content" id="uiActionText"></div>
                     </div>
                 </div>
             </div>
@@ -272,6 +281,9 @@ class ChatController {
                 const cursor = this.currentAnswerBubble.querySelector('.typing-cursor');
                 if (cursor) cursor.remove();
             }
+            
+            // 执行待处理的UI动作
+            this.executePendingUIActions();
         }
     }
 
@@ -316,6 +328,18 @@ class ChatController {
                     this.scrollToBottom();
                     break;
                     
+                case 'ui_action':
+                    // UI动作指令 - 添加到队列等待执行
+                    console.log('[ChatController] Received ui_action event:', event.content);
+                    if (event.content) {
+                        this.pendingUIActions.push(event.content);
+                        console.log('[ChatController] Added to pendingUIActions, queue length:', this.pendingUIActions.length);
+                        this.updateUIActionDisplay(event.content);
+                    } else {
+                        console.warn('[ChatController] ui_action event has no content');
+                    }
+                    break;
+                    
                 case 'done':
                     // 完成
                     break;
@@ -327,6 +351,50 @@ class ChatController {
         } catch (e) {
             console.error('Parse event error:', e, data);
         }
+    }
+
+    /**
+     * 更新UI动作显示
+     */
+    updateUIActionDisplay(action) {
+        if (!this.currentThinkingBubble) return;
+        
+        const uiActionSection = this.currentThinkingBubble.querySelector('#uiActionSection');
+        const uiActionText = this.currentThinkingBubble.querySelector('#uiActionText');
+        
+        if (uiActionSection && uiActionText) {
+            uiActionSection.style.display = 'block';
+            const actionType = action.type || 'unknown';
+            uiActionText.textContent = `[${actionType}] ${JSON.stringify(action)}`;
+        }
+    }
+
+    /**
+     * 执行待处理的UI动作
+     */
+    executePendingUIActions() {
+        console.log('[ChatController] executePendingUIActions called, pending count:', this.pendingUIActions.length);
+        
+        if (this.pendingUIActions.length === 0) {
+            console.log('[ChatController] No pending UI actions');
+            return;
+        }
+        
+        console.log('[ChatController] Executing pending UI actions:', this.pendingUIActions);
+        
+        for (const action of this.pendingUIActions) {
+            console.log('[ChatController] Processing action:', action);
+            if (window.mapController) {
+                console.log('[ChatController] Calling mapController.executeUIAction');
+                window.mapController.executeUIAction(action);
+            } else {
+                console.error('[ChatController] mapController not available!');
+            }
+        }
+        
+        // 清空队列
+        this.pendingUIActions = [];
+        console.log('[ChatController] UI actions queue cleared');
     }
 
     /**
@@ -363,6 +431,7 @@ class ChatController {
         this.currentThinkingBubble = null;
         this.currentAnswerBubble = null;
         this.thinkingContent = { think: '', tool_call: '', tool_response: '' };
+        this.pendingUIActions = [];
 
         // 通知后端清空会话
         try {
@@ -379,6 +448,11 @@ class ChatController {
 
         // 生成新会话ID
         this.sessionId = this.generateSessionId();
+        
+        // 清空地图标记
+        if (window.mapController) {
+            window.mapController.clearHighlights();
+        }
     }
 
     /**
@@ -400,7 +474,7 @@ class ChatController {
 
 /**
  * 地图控制器
- * 负责与iframe中的地图通信
+ * 负责与iframe中的地图通信，处理UI动作指令
  */
 class MapController {
     constructor() {
@@ -417,48 +491,192 @@ class MapController {
 
     handleMapMessage(data) {
         // 处理地图发送的消息
-        console.log('Map message:', data);
+        console.log('[MapController] Message from map:', data);
+        
+        if (data && data.type === 'map_event') {
+            switch (data.eventType) {
+                case 'ready':
+                    console.log('[MapController] Map is ready');
+                    break;
+                case 'spots_highlighted':
+                    console.log('[MapController] Spots highlighted:', data.data);
+                    break;
+                case 'route_shown':
+                    console.log('[MapController] Route shown:', data.data);
+                    break;
+                case 'spot_selected':
+                    console.log('[MapController] Spot selected:', data.data);
+                    break;
+            }
+        }
     }
 
     /**
      * 向地图发送命令
      */
     sendCommand(command, params) {
-        if (this.iframe && this.iframe.contentWindow) {
-            this.iframe.contentWindow.postMessage({
-                type: 'command',
-                command: command,
-                params: params
-            }, '*');
+        console.log('[MapController] Attempting to send command:', command, params);
+        console.log('[MapController] iframe element:', this.iframe);
+        
+        if (!this.iframe) {
+            console.error('[MapController] iframe not found!');
+            return;
         }
+        
+        if (!this.iframe.contentWindow) {
+            console.error('[MapController] iframe contentWindow not available!');
+            return;
+        }
+        
+        const message = {
+            type: 'command',
+            command: command,
+            params: params
+        };
+        
+        console.log('[MapController] Posting message:', message);
+        this.iframe.contentWindow.postMessage(message, '*');
+        console.log('[MapController] Command sent successfully:', command);
+    }
+
+    /**
+     * 执行UI动作指令
+     */
+    executeUIAction(action) {
+        console.log('[MapController] executeUIAction called with:', action);
+        
+        if (!action || !action.type) {
+            console.warn('[MapController] Invalid UI action:', action);
+            return;
+        }
+        
+        console.log('[MapController] Executing UI action of type:', action.type);
+        
+        switch (action.type) {
+            case 'highlight_spots':
+                console.log('[MapController] Processing highlight_spots, spots:', action.spots);
+                // 高亮显示景点
+                if (action.spots && Array.isArray(action.spots)) {
+                    console.log('[MapController] Calling highlightSpots with', action.spots.length, 'spots');
+                    this.highlightSpots(action.spots);
+                } else {
+                    console.warn('[MapController] No spots array or invalid spots:', action.spots);
+                }
+                break;
+                
+            case 'show_route':
+                // 显示路线
+                if (action.from && action.to) {
+                    this.showRoute(action.from, action.to, action.mode || 'walking');
+                }
+                break;
+                
+            case 'clear_map':
+                // 清除地图
+                this.clearHighlights();
+                this.clearRoute();
+                break;
+                
+            case 'navigate_to':
+                // 导航到指定位置
+                if (action.lat && action.lng) {
+                    this.navigateTo(action.lng, action.lat, action.zoom || 15);
+                }
+                break;
+                
+            case 'focus_spot':
+                // 聚焦到指定景点
+                if (action.name) {
+                    this.focusOnSpot(action.name);
+                }
+                break;
+                
+            default:
+                console.warn('[MapController] Unknown UI action type:', action.type);
+        }
+    }
+
+    /**
+     * 高亮显示景点
+     * @param {Array} spots - 景点数组 [{name, lat, lng, description}]
+     */
+    highlightSpots(spots) {
+        console.log('[MapController] highlightSpots called with:', spots);
+        
+        if (!spots || spots.length === 0) {
+            console.warn('[MapController] No spots to highlight');
+            return;
+        }
+        
+        // 格式化景点数据
+        const formattedSpots = spots.map((spot, index) => ({
+            name: spot.name,
+            lat: spot.lat,
+            lng: spot.lng,
+            description: spot.description || '',
+            color: spot.color || this.getSpotColor(index)
+        }));
+        
+        console.log('[MapController] Formatted spots:', formattedSpots);
+        this.sendCommand('highlightSpots', { spots: formattedSpots });
+    }
+
+    /**
+     * 显示路线
+     * @param {Object} from - 起点 {name, lat, lng}
+     * @param {Object} to - 终点 {name, lat, lng}
+     * @param {String} mode - 交通方式 walking|driving|transit
+     */
+    showRoute(from, to, mode = 'walking') {
+        this.sendCommand('showRoute', {
+            from: {
+                name: from.name,
+                lat: from.lat,
+                lng: from.lng
+            },
+            to: {
+                name: to.name,
+                lat: to.lat,
+                lng: to.lng
+            },
+            mode: mode
+        });
     }
 
     /**
      * 导航到指定位置
      */
     navigateTo(lng, lat, zoom = 15) {
-        this.sendCommand('navigate', { lng, lat, zoom });
+        this.sendCommand('navigateTo', { lng, lat, zoom });
     }
 
     /**
-     * 显示路线
+     * 聚焦到指定景点
      */
-    showRoute(routeData) {
-        this.sendCommand('showRoute', routeData);
+    focusOnSpot(name) {
+        this.sendCommand('selectSpot', { name });
     }
 
     /**
-     * 添加标记点
+     * 清除所有高亮
      */
-    addMarker(lng, lat, title) {
-        this.sendCommand('addMarker', { lng, lat, title });
+    clearHighlights() {
+        this.sendCommand('clearSpots', {});
     }
 
     /**
-     * 清除所有标记
+     * 清除路线
      */
-    clearMarkers() {
-        this.sendCommand('clearMarkers', {});
+    clearRoute() {
+        this.sendCommand('clearRoute', {});
+    }
+
+    /**
+     * 获取景点颜色
+     */
+    getSpotColor(index) {
+        const colors = ['#FF6B35', '#4CAF50', '#2196F3', '#9C27B0', '#FF9800', '#E91E63', '#00BCD4'];
+        return colors[index % colors.length];
     }
 }
 
@@ -507,10 +725,23 @@ class ResizeController {
 }
 
 // 初始化
-const chatController = new ChatController();
-const mapController = new MapController();
-const resizeController = new ResizeController();
+console.log('[Main] Starting initialization...');
 
-// 暴露到全局以便HTML调用
-window.chatController = chatController;
-window.mapController = mapController;
+try {
+    const chatController = new ChatController();
+    console.log('[Main] ChatController initialized');
+    
+    const mapController = new MapController();
+    console.log('[Main] MapController initialized');
+    
+    const resizeController = new ResizeController();
+    console.log('[Main] ResizeController initialized');
+
+    // 暴露到全局以便HTML调用
+    window.chatController = chatController;
+    window.mapController = mapController;
+    
+    console.log('[Main] All controllers initialized successfully');
+} catch (error) {
+    console.error('[Main] Initialization error:', error);
+}
