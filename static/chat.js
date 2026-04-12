@@ -81,6 +81,12 @@ class ChatController {
         this.currentAnswerBubble = null;
         this.pendingUIActions = [];
         
+        // 清除地图上的上一轮推荐，避免阻塞新一轮推荐
+        if (window.mapController) {
+            console.log('[ChatController] Clearing previous highlights before new request');
+            window.mapController.clearHighlights();
+        }
+        
         // 发送请求
         await this.streamAgentResponse(message);
     }
@@ -661,7 +667,10 @@ class MapController {
      * 清除所有高亮
      */
     clearHighlights() {
+        console.log('[MapController] Clearing highlights');
         this.sendCommand('clearSpots', {});
+        // 同时清除路线
+        this.clearRoute();
     }
 
     /**
