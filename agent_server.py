@@ -361,15 +361,70 @@ def extract_ui_actions(text: str) -> tuple:
     return result_text.strip(), ui_actions
 
 
-def enhance_with_local_data(user_message: str, response_text: str) -> str:
+def is_follow_up_question(user_message: str, last_spots: list) -> bool:
+    """
+    判断用户是否在追问当前推荐地点的信息
+    例如：问票价、营业时间、交通方式等
+    """
+    if not last_spots or len(last_spots) == 0:
+        return False
+    
+    user_lower = user_message.lower()
+    
+    # 追问类关键词（不涉及地点切换）
+    follow_up_keywords = [
+        '多少钱', '价格', '票价', '费用', '收费', '免费',
+        '营业', '开放', '时间', '几点', '多久', '什么时候',
+        '怎么去', '怎么去那里', '交通', '公交', '地铁', '打车',
+        '附近', '周边', '旁边', '附近有什么',
+        '怎么样', '好玩吗', '值得', '推荐吗', '评价',
+        '有什么', '有什么玩的', '吃什么', '美食',
+        '历史', '介绍', '背景', '故事', '由来',
+        '拍照', '打卡', '攻略', '注意', '需要', '要带',
+        '为什么', '是什么', '怎么', '多少',
+    ]
+    
+    # 地点切换类关键词（需要新的推荐）
+    switch_keywords = [
+        '还有', '其他', '别的', '另外', '再', '换', '除了',
+        '推荐', '想去', '打算去', '准备去', '计划去',
+        '哪里', '哪些地方', '有什么地方', '去哪',
+    ]
+    
+    # 如果包含地点切换关键词，不是追问
+    if any(kw in user_lower for kw in switch_keywords):
+        return False
+    
+    # 如果包含追问关键词，可能是追问
+    if any(kw in user_lower for kw in follow_up_keywords):
+        return True
+    
+    # 短句可能是追问（如"多少钱"、"好玩吗"）
+    if len(user_message) <= 10:
+        return True
+    
+    return False
+
+
+def enhance_with_local_data(user_message: str, response_text: str, session: dict = None) -> str:
     """
     根据用户消息和AI回复，使用本地景点数据增强UI动作
     如果AI没有输出UI_ACTION，但用户意图明确，则自动添加
+    
+    【修复】检测用户是否在追问当前地点信息，如果是则不添加新的UI动作
     """
     user_lower = user_message.lower()
     
     # 检查是否已经有UI_ACTION
     if '[UI_ACTION]' in response_text:
+        return response_text
+    
+    # 获取上一次推荐的景点
+    last_spots = session.get('last_recommended_spots', []) if session else []
+    
+    # 【修复】检测是否是追问当前地点信息
+    if last_spots and is_follow_up_question(user_message, last_spots):
+        print(f"[enhance_with_local_data] Detected follow-up question, skipping UI_ACTION")
         return response_text
     
     # 推荐意图检测
@@ -402,6 +457,9 @@ def enhance_with_local_data(user_message: str, response_text: str) -> str:
                 "type": "highlight_spots",
                 "spots": [{"name": s["name"], "lat": s["lat"], "lng": s["lng"], "description": s["description"]} for s in spots]
             }
+            # 保存本次推荐的景点到会话
+            if session is not None:
+                session['last_recommended_spots'] = ui_action["spots"]
             response_text += f"\n[UI_ACTION]{json.dumps(ui_action, ensure_ascii=False)}"
     
     # 导航意图检测
@@ -441,7 +499,8 @@ async def stream_agent_response(session_id: str, user_message: str) -> AsyncGene
     if session_id not in session_store:
         session_store[session_id] = {
             'agent': create_agent(),
-            'messages': []
+            'messages': [],
+            'last_recommended_spots': []
         }
     
     session = session_store[session_id]
@@ -505,7 +564,7 @@ async def stream_agent_response(session_id: str, user_message: str) -> AsyncGene
         
         # 使用本地数据增强（如果AI没有输出UI_ACTION）
         print(f"[Agent] Checking for local data enhancement")
-        enhanced_text = enhance_with_local_data(user_message, accumulated_text)
+        enhanced_text = enhance_with_local_data(user_message, accumulated_text, session)
         print(f"[Agent] Enhanced text length: {len(enhanced_text)}, original: {len(accumulated_text)}")
         
         # 检查增强后是否有新的UI动作
@@ -592,6 +651,7 @@ async def clear_session(request: Request):
     
     if session_id in session_store:
         session_store[session_id]['messages'] = []
+        session_store[session_id]['last_recommended_spots'] = []
     
     return {"status": "success", "message": "会话已清空"}
 

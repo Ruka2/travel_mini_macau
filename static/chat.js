@@ -79,13 +79,11 @@ class ChatController {
         this.thinkingContent = { think: '', tool_call: '', tool_response: '' };
         this.currentThinkingBubble = null;
         this.currentAnswerBubble = null;
-        this.pendingUIActions = [];
         
-        // 清除地图上的上一轮推荐，避免阻塞新一轮推荐
-        if (window.mapController) {
-            console.log('[ChatController] Clearing previous highlights before new request');
-            window.mapController.clearHighlights();
-        }
+        // 【修复】保留上一轮UI动作，用于比较是否真的产生了新地点
+        // 只有当新响应产生不同地点时才切换，支持用户在当前推荐基础上追问
+        this.previousUIActions = [...this.pendingUIActions];
+        this.pendingUIActions = [];
         
         // 发送请求
         await this.streamAgentResponse(message);
@@ -376,6 +374,48 @@ class ChatController {
     }
 
     /**
+     * 比较两个UI动作是否产生相同地点
+     */
+    areSpotsEqual(action1, action2) {
+        if (!action1 || !action2) return false;
+        if (action1.type !== action2.type) return false;
+        if (action1.type !== 'highlight_spots') return false;
+        
+        const spots1 = action1.spots || [];
+        const spots2 = action2.spots || [];
+        
+        if (spots1.length !== spots2.length) return false;
+        if (spots1.length === 0) return true;
+        
+        // 比较景点名称列表
+        const names1 = spots1.map(s => s.name).sort();
+        const names2 = spots2.map(s => s.name).sort();
+        
+        return names1.every((name, i) => name === names2[i]);
+    }
+    
+    /**
+     * 判断是否需要切换地点推荐
+     * 只有当新动作与之前动作不同时才切换
+     */
+    shouldSwitchSpots(newAction) {
+        // 如果不是高亮景点动作，直接执行
+        if (!newAction || newAction.type !== 'highlight_spots') {
+            return true;
+        }
+        
+        // 检查是否与之前的动作产生相同地点
+        for (const prevAction of this.previousUIActions) {
+            if (this.areSpotsEqual(prevAction, newAction)) {
+                console.log('[ChatController] Same spots detected, keeping current highlights');
+                return false; // 地点相同，不需要切换
+            }
+        }
+        
+        return true; // 新地点，需要切换
+    }
+
+    /**
      * 执行待处理的UI动作
      */
     executePendingUIActions() {
@@ -388,8 +428,27 @@ class ChatController {
         
         console.log('[ChatController] Executing pending UI actions:', this.pendingUIActions);
         
+        // 【修复】智能判断是否需要清除上一轮高亮
+        // 只有当新动作包含不同地点时才清除旧的高亮
+        const hasNewSpots = this.pendingUIActions.some(action => 
+            action.type === 'highlight_spots' && this.shouldSwitchSpots(action)
+        );
+        
+        // 如果有新的不同地点推荐，先清除旧的
+        if (hasNewSpots && window.mapController) {
+            console.log('[ChatController] New different spots detected, clearing previous highlights');
+            window.mapController.clearHighlights();
+        }
+        
         for (const action of this.pendingUIActions) {
             console.log('[ChatController] Processing action:', action);
+            
+            // 对于 highlight_spots 动作，检查是否真的需要执行
+            if (action.type === 'highlight_spots' && !this.shouldSwitchSpots(action)) {
+                console.log('[ChatController] Skipping highlight_spots - same as current');
+                continue; // 跳过相同地点的重复高亮
+            }
+            
             if (window.mapController) {
                 console.log('[ChatController] Calling mapController.executeUIAction');
                 window.mapController.executeUIAction(action);
@@ -438,6 +497,7 @@ class ChatController {
         this.currentAnswerBubble = null;
         this.thinkingContent = { think: '', tool_call: '', tool_response: '' };
         this.pendingUIActions = [];
+        this.previousUIActions = [];
 
         // 通知后端清空会话
         try {
