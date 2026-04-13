@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Mapbox + Three.js 巴士示例</title>
+<meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
+<style>
+    body { margin: 0; padding: 0; }
+    #map { position: absolute; top: 0; bottom: 0; width: 100%; }
+</style>
+<!-- 引入 Mapbox GL JS CSS -->
+<link href='https://api.mapbox.com/mapbox-gl-js/v2.10.0/mapbox-gl.css' rel='stylesheet' />
+</head>
+<body>
+<div id="map"></div>
+<!-- 引入 Mapbox GL JS 和 Three.js -->
+<script src='https://api.mapbox.com/mapbox-gl-js/v2.10.0/mapbox-gl.js'></script>
+<script src='https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js'></script>
+<script>
+
+// 设置您的 Mapbox 访问令牌
+mapboxgl.accessToken = 'pk.eyJ1IjoiZXRlcm5pdHkteHlmIiwiYSI6ImNqaDFsdXIxdTA1ODgycXJ5czdjNmF0ZTkifQ.zN7e588TqZOQMWfws-K0Yw';
+
+// 初始化 Mapbox 地图
+const map = new mapboxgl.Map({
+    container: 'map',
+    style: 'mapbox://styles/mapbox/streets-v11', // 地图样式
+    center: [113.54913, 22.19875], // 澳門坐标
+    zoom: 15,
+    pitch: 60, // 地图倾斜角度
+    bearing: -17.6,
+    antialias: true // 开启抗锯齿
+});
+
+// 等待地图加载完成
+map.on('load', function () {
+    // 找到一个合适的位置插入图层
+    const layers = map.getStyle().layers;
+    let labelLayerId;
+    for (let i = 0; i < layers.length; i++) {
+        if (layers[i].type === 'symbol' && layers[i].layout['text-field']) {
+            labelLayerId = layers[i].id;
+            break;
+        }
+    }
+
+    // 模型定位参数
+    const modelOrigin = [113.54913, 22.19875];
+    const modelAltitude = 0;
+    const modelRotate = [Math.PI / 2, 0, 0];
+
+    const modelAsMercatorCoordinate = mapboxgl.MercatorCoordinate.fromLngLat(
+        modelOrigin,
+        modelAltitude
+    );
+
+    // 模型变换参数
+    const modelTransform = {
+        translateX: modelAsMercatorCoordinate.x,
+        translateY: modelAsMercatorCoordinate.y,
+        translateZ: modelAsMercatorCoordinate.z,
+        rotateX: modelRotate[0],
+        rotateY: modelRotate[1],
+        rotateZ: modelRotate[2],
+        scale: modelAsMercatorCoordinate.meterInMercatorCoordinateUnits()
+    };
+
+    // 创建 Three.js 自定义图层
+    const customLayer = {
+        id: '3d-model',
+        type: 'custom',
+        renderingMode: '3d',
+        onAdd: function (map, gl) {
+            this.camera = new THREE.Camera();
+            this.scene = new THREE.Scene();
+
+            // 创建立方体几何体
+            const geometry = new THREE.BoxGeometry(10, 4, 4);
+            const material = new THREE.MeshBasicMaterial({ color: 0xff0000, transparent: true, opacity: 0.8 });
+            this.cube = new THREE.Mesh(geometry, material);
+
+            // 添加立方体到场景
+            this.scene.add(this.cube);
+
+            // 定义立方体移动路径
+            this.startTime = Date.now();
+            this.path = [
+                [113.54913, 22.19875],
+                [113.55013, 22.19875],
+                [113.55013, 22.19975],
+                [113.54913, 22.19975],
+                [113.54913, 22.19875]
+            ];
+
+            // 为射线检测准备
+            this.raycaster = new THREE.Raycaster();
+            this.mouse = new THREE.Vector2();
+
+            // 添加鼠标移动事件监听
+            map.getCanvasContainer().addEventListener('mousemove', this.onMouseMove.bind(this));
+
+            // 使用 Mapbox GL JS 的 canvas
+            this.renderer = new THREE.WebGLRenderer({
+                canvas: map.getCanvas(),
+                context: gl,
+                antialias: true
+            });
+
+            this.renderer.autoClear = false;
+        },
+        render: function (gl, matrix) {
+            const now = Date.now();
+            const t = (now - this.startTime) / 10000;
+
+            // 计算立方体在路径上的位置
+            const pathLength = this.path.length;
+            const index = Math.floor(t % pathLength);
+            const nextIndex = (index + 1) % pathLength;
+
+            const start = this.path[index];
+            const end = this.path[nextIndex];
+            const lerpFactor = t % 1;
+
+            const currentLng = start[0] + (end[0] - start[0]) * lerpFactor;
+            const currentLat = start[1] + (end[1] - start[1]) * lerpFactor;
+
+            const position = mapboxgl.MercatorCoordinate.fromLngLat([currentLng, currentLat], 0);
+
+            this.cube.position.set(
+                position.x - modelTransform.translateX,
+                position.y - modelTransform.translateY,
+                position.z - modelTransform.translateZ
+            );
+
+            // 旋转立方体
+            this.cube.rotation.x += 0.01;
+            this.cube.rotation.y += 0.01;
+
+            // 更新摄像机矩阵
+            this.camera.projectionMatrix = new THREE.Matrix4().fromArray(matrix);
+
+            // 渲染场景
+            this.renderer.state.reset();
+            this.renderer.render(this.scene, this.camera);
+
+            // 触发地图重绘
+            map.triggerRepaint();
+        },
+        onMouseMove: function (event) {
+            // 计算鼠标位置
+            const rect = map.getCanvas().getBoundingClientRect();
+            this.mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+            this.mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+            this.raycaster.setFromCamera(this.mouse, this.camera);
+
+            // 检测鼠标是否悬停在立方体上
+            const intersects = this.raycaster.intersectObject(this.cube);
+            if (intersects.length > 0) {
+                // 改变立方体颜色
+                this.cube.material.color.set(0x00ff00);
+
+                // 显示弹窗
+                if (!this.popup) {
+                    this.popup = new mapboxgl.Popup({ closeButton: false, closeOnClick: false })
+                        .setLngLat([113.54913, 22.19875])
+                        .setHTML('<h3>巴士编号: 3A</h3>')
+                        .addTo(map);
+                }
+            } else {
+                // 恢复立方体颜色
+                this.cube.material.color.set(0xff0000);
+
+                // 移除弹窗
+                if (this.popup) {
+                    this.popup.remove();
+                    this.popup = null;
+                }
+            }
+        }
+    };
+
+    // 将自定义图层添加到地图
+    map.addLayer(customLayer, labelLayerId);
+});
+
+</script>
+</body>
+</html>

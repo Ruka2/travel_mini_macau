@@ -1,0 +1,328 @@
+[
+    {
+        "bus_name": "9",
+        "dir": 0,
+        "busInfoList": [
+            {
+                "latitude": "22.215260",
+                "longitude": "113.544840",
+                "busPlate": "MS9606",
+                "speed": -1
+            }
+        ],
+        "color": [
+            "#BE9B64",
+            "#A57B5B"
+        ]
+    },
+    {
+        "bus_name": "9A",
+        "dir": 0,
+        "busInfoList": [
+            {
+                "latitude": "22.214716",
+                "longitude": "113.543600",
+                "busPlate": "MY9211",
+                "speed": -1
+            }
+        ],
+        "color": [
+            "#A57B5B",
+            "#8A16A5"
+        ]
+    },
+    {
+        "bus_name": "25",
+        "dir": 0,
+        "busInfoList": [
+            {
+                "latitude": "22.213243",
+                "longitude": "113.549840",
+                "busPlate": "MW5112",
+                "speed": -1
+            },
+            {
+                "latitude": "22.151410",
+                "longitude": "113.563736",
+                "busPlate": "MX1277",
+                "speed": 34
+            },
+            {
+                "latitude": "22.197720",
+                "longitude": "113.546450",
+                "busPlate": "MX1435",
+                "speed": 35
+            }
+        ],
+        "color": [
+            "#4B087D",
+            "#8BEC40"
+        ]
+    },
+    {
+        "bus_name": "30",
+        "dir": 0,
+        "busInfoList": [
+            {
+                "latitude": "22.214845",
+                "longitude": "113.551718",
+                "busPlate": "AA2799",
+                "speed": 45
+            }
+        ],
+        "color": [
+            "#EB78D5",
+            "#DF72A2"
+        ]
+    },
+    {
+        "bus_name": "101X",
+        "dir": 0,
+        "busInfoList": [
+            {
+                "latitude": "22.210390",
+                "longitude": "113.546150",
+                "busPlate": "MW6043",
+                "speed": 31
+            },
+            {
+                "latitude": "22.210724",
+                "longitude": "113.543660",
+                "busPlate": "AA7382",
+                "speed": 28
+            }
+        ],
+        "color": [
+            "#6971E2",
+            "#748333"
+        ]
+    },
+    {
+        "bus_name": "701x",
+        "dir": 0,
+        "busInfoList": [
+            {
+                "latitude": "22.139803",
+                "longitude": "113.552450",
+                "busPlate": "MW2856",
+                "speed": 49
+            },
+            {
+                "latitude": "22.139858",
+                "longitude": "113.551150",
+                "busPlate": "AA7539",
+                "speed": 46
+            }
+        ],
+        "color": [
+            "#0730CF",
+            "#85185C"
+        ]
+    },
+    {
+        "bus_name": "AP1",
+        "dir": 0,
+        "busInfoList": [
+            {
+                "latitude": "22.215586",
+                "longitude": "113.549750",
+                "busPlate": "AA7466",
+                "speed": 47
+            }
+        ],
+        "color": [
+            "#85185C",
+            "#51775F"
+        ]
+    },
+    {
+        "bus_name": "N1A",
+        "dir": 0,
+        "busInfoList": [
+            {
+                "latitude": "22.208841",
+                "longitude": "113.541756",
+                "busPlate": "MW6038",
+                "speed": -1
+            },
+            {
+                "latitude": "22.201962",
+                "longitude": "113.537790",
+                "busPlate": "AA7226",
+                "speed": 9
+            },
+            {
+                "latitude": "22.210667",
+                "longitude": "113.544160",
+                "busPlate": "AA7350",
+                "speed": 13
+            },
+            {
+                "latitude": "22.197489",
+                "longitude": "113.557540",
+                "busPlate": "AA7402",
+                "speed": 10
+            }
+        ],
+        "color": [
+            "#AF7C51",
+            "#29BAE2"
+        ]
+    },
+    {
+        "bus_name": "N1B",
+        "dir": 0,
+        "busInfoList": [
+            {
+                "latitude": "22.190031",
+                "longitude": "113.547080",
+                "busPlate": "MW2349",
+                "speed": 7
+            },
+            {
+                "latitude": "22.210579",
+                "longitude": "113.544580",
+                "busPlate": "MW2216",
+                "speed": 40
+            },
+            {
+                "latitude": "22.210867",
+                "longitude": "113.541420",
+                "busPlate": "MW2646",
+                "speed": 16
+            }
+        ],
+        "color": [
+            "#29BAE2",
+            "#405249"
+        ]
+    },
+    {
+        "bus_name": "N2",
+        "dir": 0,
+        "busInfoList": [
+            {
+                "latitude": "22.187700",
+                "longitude": "113.556180",
+                "busPlate": "MU9578",
+                "speed": 32
+            },
+            {
+                "latitude": "22.210667",
+                "longitude": "113.544160",
+                "busPlate": "MW1140",
+                "speed": 15
+            },
+            {
+                "latitude": "22.160378",
+                "longitude": "113.557000",
+                "busPlate": "AA7364",
+                "speed": 38
+            }
+        ],
+        "color": [
+            "#405249",
+            "#4AB4B3"
+        ]
+    },
+    {
+        "bus_name": "N2",
+        "dir": 1,
+        "busInfoList": [
+            {
+                "latitude": "22.163765",
+                "longitude": "113.545200",
+                "busPlate": "MW2614",
+                "speed": 48
+            },
+            {
+                "latitude": "22.161610",
+                "longitude": "113.573840",
+                "busPlate": "MW2711",
+                "speed": 35
+            },
+            {
+                "latitude": "22.190970",
+                "longitude": "113.546200",
+                "busPlate": "MW2717",
+                "speed": 13
+            }
+        ],
+        "color": [
+            "#405249",
+            "#4AB4B3"
+        ]
+    },
+    {
+        "bus_name": "N3",
+        "dir": 0,
+        "busInfoList": [
+            {
+                "latitude": "22.159895",
+                "longitude": "113.557350",
+                "busPlate": "MZ3078",
+                "speed": 26
+            },
+            {
+                "latitude": "22.118788",
+                "longitude": "113.552640",
+                "busPlate": "AA7015",
+                "speed": 36
+            },
+            {
+                "latitude": "22.146412",
+                "longitude": "113.563830",
+                "busPlate": "AA7643",
+                "speed": 27
+            }
+        ],
+        "color": [
+            "#4AB4B3",
+            "#4C11CF"
+        ]
+    },
+    {
+        "bus_name": "N5",
+        "dir": 0,
+        "busInfoList": [
+            {
+                "latitude": "22.157286",
+                "longitude": "113.560460",
+                "busPlate": "AA2963",
+                "speed": 19
+            },
+            {
+                "latitude": "22.151628",
+                "longitude": "113.563790",
+                "busPlate": "AA2945",
+                "speed": 32
+            }
+        ],
+        "color": [
+            "#4C11CF",
+            "#BB05D1"
+        ]
+    },
+    {
+        "bus_name": "N6",
+        "dir": 0,
+        "busInfoList": [
+            {
+                "latitude": "22.134722",
+                "longitude": "113.546410",
+                "busPlate": "AA3039",
+                "speed": 46
+            },
+            {
+                "latitude": "22.131758",
+                "longitude": "113.546510",
+                "busPlate": "AA2875",
+                "speed": 45
+            }
+        ],
+        "color": [
+            "#BB05D1",
+            "#A96546"
+        ]
+    }
+]

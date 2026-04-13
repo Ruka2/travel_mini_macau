@@ -1,0 +1,1 @@
+function GenModelTransform(t=113.54884,r=22.16185,e=0,a=0,o=0){const n=[t,r],s=mapboxgl.MercatorCoordinate.fromLngLat(n,0);return{translateX:s.x,translateY:s.y,translateZ:s.z,rotateX:e,rotateY:a,rotateZ:o,scale:s.meterInMercatorCoordinateUnits()}}export{GenModelTransform};

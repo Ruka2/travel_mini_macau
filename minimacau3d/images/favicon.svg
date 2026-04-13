@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- 背景圆形 -->
+  <circle cx="32" cy="32" r="25" fill="#3D4F65"/>
+  
+  <!-- 水平复合标志 -->
+  <!-- 從18,32畫到24,42,再畫到40,42,再畫到46,32,再畫到40,22,再畫到24,22,最後閉合-->
+  <path d="M18,32 
+           L24,42
+           L40,42
+           L46,32
+           L40,22
+           L24,22
+           Z" 
+        fill="#5A8AC6" 
+        stroke="#A0C8FF" 
+        stroke-width="2.5"
+        stroke-linejoin="round"/>
+  <!-- 左下垂直线 -->
+  <!-- d參數：M24,22 L30,32意思:從24,22畫到30,32 -->
+  <path d="M24,22 L30,32" 
+        stroke="#A0C8FF" 
+        stroke-width="2.5"
+        stroke-linejoin="round"/>
+  <!-- 右下垂直线 -->
+  <!-- d參數:M24,42 L30,32意思:從24,42畫到30,32 -->
+  <path d="M24,42 L30,32" 
+        stroke="#A0C8FF" 
+        stroke-width="2.5"
+        stroke-linejoin="round"/>
+  <!-- 左上垂直线 -->
+  <!-- d參數:M30,32 L46,32意思:從30,32畫到46,32 -->
+  <path d="M30,32 L46,32" 
+        stroke="#A0C8FF" 
+        stroke-width="2.5"
+        stroke-linejoin="round"/>
+    
+</svg> 
