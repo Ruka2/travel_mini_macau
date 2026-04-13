@@ -4,500 +4,6 @@
  * 支持UI动作指令操控地图界面
  */
 
-/**
- * 前端 Agent 客户端
- * 替代后端 agent_server.py，直接在浏览器中运行 Agent 对话流
- */
-class AgentClient {
-    constructor() {
-        this.messages = [];
-        this.systemMessage = `你是一个专业的澳门旅游导游助手，可以帮助用户解决出行、景点推荐、美食推荐等旅游信息。
-
-## 你可以帮用户：
-1. 推荐澳门热门景点、美食、餐厅
-2. 查询两地之间的路线规划
-3. 回答关于澳门旅游的各种问题
-
-## 回复风格要求：
-1. 与用户回答交流的内容简短明了
-   1.1 简单问题简单回答，复杂问题可以适当增加字数
-2. 口吻随意一些，符合口头回答
-   2.1 选择简单的口吻，避免过于正式或书面化的表达
-   2.2 禁止使用复杂的符号，仅保留逗号、句号等基本标点符号
-
-## 意图识别与UI动作输出规范（重要）：
-
-你需要根据用户意图，在回复中插入特定的UI动作标记 [UI_ACTION](...) 来操控地图界面。
-
-### 意图类型1：推荐类（景点推荐、美食推荐）
-当用户询问以下类型问题时，识别为推荐意图：
-- "推荐一些景点"
-- "有什么好吃的"
-- "哪里好玩"
-- "有什么美食"
-- "介绍一下大三巴"
-- "威尼斯人有什么好玩的"
-
-推荐类意图的输出格式：
-1. 在思考过程中分析用户需求
-2. 在 [ANSWER] 部分给出向用户回答的文字回复（推荐理由、简要介绍等）
-3. 在文字回复后，单独一行输出 UI 动作标记：
-   [UI_ACTION]{"type": "highlight_spots", "spots": [{"name": "地点名", "lat": 纬度, "lng": 经度, "description": "描述"}, ...]}
-
-注意：spots 数组中的每个地点必须包含 name、lat、lng 字段。
-
-### 意图类型2：导航/路线规划类
-当用户询问以下类型问题时，识别为导航意图：
-- "从XX到XX怎么走"
-- "怎么去XX"
-- "从XX到XX的路线"
-- "导航到XX"
-
-导航类意图的输出格式：
-1. 在思考过程中分析起点和终点
-2. 在 [ANSWER] 部分给出向用户回答的文字回复（简要说明路线建议）
-3. 在文字回复后，单独一行输出 UI 动作标记：
-   [UI_ACTION]{"type": "show_route", "from": {"name": "起点名", "lat": 纬度, "lng": 经度}, "to": {"name": "终点名", "lat": 纬度, "lng": 经度}, "mode": "walking|driving|transit"}
-
-注意：
-- from 和 to 必须包含 name、lat、lng 字段
-- mode 默认为 walking（步行），可选 driving（驾车）、transit（公交）
-- 如果用户没有指定起点，默认使用当前位置或询问用户
-
-### 示例对话：
-
-用户：推荐几个澳门著名景点
-AI思考：用户想要景点推荐，这是推荐类意图。我应该推荐大三巴、威尼斯人、巴黎人等经典景点。
-AI输出：
-[ANSWER]
-推荐您去这几个地方：大三巴牌坊是必打卡的地标，威尼斯人有贡多拉船可以坐，巴黎人的铁塔夜景也很美。
-[UI_ACTION]{"type": "highlight_spots", "spots": [{"name": "大三巴牌坊", "lat": 22.1973, "lng": 113.5409, "description": "澳门地标"}, {"name": "威尼斯人", "lat": 22.1483, "lng": 113.5602, "description": "综合度假村"}, {"name": "巴黎人", "lat": 22.1495, "lng": 113.5615, "description": "法式主题度假村"}]}
-
-用户：从大三巴怎么去威尼斯人
-AI思考：用户询问路线，这是导航意图。起点是大三巴，终点是威尼斯人。
-AI输出：
-[ANSWER]
-您可以乘坐公交或打车过去，大约需要20-30分钟。建议走西湾大桥，沿途风景不错。
-[UI_ACTION]{"type": "show_route", "from": {"name": "大三巴牌坊", "lat": 22.1973, "lng": 113.5409}, "to": {"name": "威尼斯人", "lat": 22.1483, "lng": 113.5602}, "mode": "transit"}
-
-## 澳门主要景点坐标参考（用于输出时校准其它结果的精确经纬度）：
-- 关闸: lat=22.2159, lng=113.5489
-- 大三巴牌坊: lat=22.1973, lng=113.5409
-- 议事亭前地: lat=22.1941, lng=113.5445
-- 威尼斯人: lat=22.1483, lng=113.5602
-- 巴黎人: lat=22.1495, lng=113.5615
-- 伦敦人: lat=22.1510, lng=113.5625
-- 新葡京酒店: lat=22.1896, lng=113.5447
-- 渔人码头: lat=22.1920, lng=113.5550
-- 澳门塔: lat=22.1808, lng=113.5365
-- 官也街: lat=22.1530, lng=113.5560
-- 妈阁庙: lat=22.1860, lng=113.5310
-- 永利皇宫: lat=22.1460, lng=113.5630
-- 银河度假城: lat=22.1500, lng=113.5550
-`;
-    }
-
-    loadSettings() {
-        const saved = localStorage.getItem('travel_macau_agent_settings');
-        return saved ? JSON.parse(saved) : {};
-    }
-
-    refreshSettings() {
-        const s = this.loadSettings();
-        this.openaiUrl = (s.openaiUrl || '').replace(/\/+$/, '');
-        this.openaiKey = s.openaiKey || '';
-        this.modelType = s.modelType || '';
-        this.amapKey = s.amapKey || '';
-    }
-
-    getTools() {
-        return [
-            {
-                type: 'function',
-                function: {
-                    name: 'maps_geo',
-                    description: '将详细的结构化地址转换为经纬度坐标。支持对地标性名胜景区、建筑物名称解析为经纬度坐标',
-                    parameters: {
-                        type: 'object',
-                        properties: {
-                            address: { type: 'string', description: '待解析的结构化地址信息' },
-                            city: { type: 'string', description: '指定查询的城市，例如"澳门"' }
-                        },
-                        required: ['address']
-                    }
-                }
-            },
-            {
-                type: 'function',
-                function: {
-                    name: 'maps_text_search',
-                    description: '关键词搜索，根据用户传入关键词，搜索出相关的POI',
-                    parameters: {
-                        type: 'object',
-                        properties: {
-                            keywords: { type: 'string', description: '搜索关键词' },
-                            city: { type: 'string', description: '查询城市，例如"澳门"' },
-                            types: { type: 'string', description: 'POI类型，比如加油站' }
-                        },
-                        required: ['keywords']
-                    }
-                }
-            },
-            {
-                type: 'function',
-                function: {
-                    name: 'maps_direction_walking',
-                    description: '步行路径规划 API 可以根据输入起点终点经纬度坐标规划100km 以内的步行通勤方案',
-                    parameters: {
-                        type: 'object',
-                        properties: {
-                            origin: { type: 'string', description: '出发点经度,纬度' },
-                            destination: { type: 'string', description: '目的地经度,纬度' }
-                        },
-                        required: ['origin', 'destination']
-                    }
-                }
-            },
-            {
-                type: 'function',
-                function: {
-                    name: 'maps_direction_driving',
-                    description: '驾车路径规划 API 可以根据用户起终点经纬度坐标规划以小客车、轿车通勤出行的方案',
-                    parameters: {
-                        type: 'object',
-                        properties: {
-                            origin: { type: 'string', description: '出发点经度,纬度' },
-                            destination: { type: 'string', description: '目的地经度,纬度' }
-                        },
-                        required: ['origin', 'destination']
-                    }
-                }
-            },
-            {
-                type: 'function',
-                function: {
-                    name: 'maps_direction_transit_integrated',
-                    description: '公交路径规划 API 可以根据用户起终点经纬度坐标规划综合各类公共（火车、公交、地铁）交通方式的通勤方案',
-                    parameters: {
-                        type: 'object',
-                        properties: {
-                            origin: { type: 'string', description: '出发点经度,纬度' },
-                            destination: { type: 'string', description: '目的地经度,纬度' },
-                            city: { type: 'string', description: '公共交通规划起点城市，例如"澳门"' },
-                            cityd: { type: 'string', description: '公共交通规划终点城市，例如"澳门"' }
-                        },
-                        required: ['origin', 'destination', 'city', 'cityd']
-                    }
-                }
-            },
-            {
-                type: 'function',
-                function: {
-                    name: 'maps_distance',
-                    description: '距离测量 API 可以测量两个经纬度坐标之间的距离,支持驾车、步行以及球面距离测量',
-                    parameters: {
-                        type: 'object',
-                        properties: {
-                            origins: { type: 'string', description: '起点经度,纬度，可以传多个坐标，使用竖线隔离，比如120,30|120,31' },
-                            destination: { type: 'string', description: '终点经度,纬度' },
-                            type: { type: 'string', description: '距离测量类型,1代表驾车距离测量，0代表直线距离测量，3步行距离测量' }
-                        },
-                        required: ['origins', 'destination']
-                    }
-                }
-            },
-            {
-                type: 'function',
-                function: {
-                    name: 'maps_weather',
-                    description: '根据城市名称或者标准adcode查询指定城市的天气',
-                    parameters: {
-                        type: 'object',
-                        properties: {
-                            city: { type: 'string', description: '城市名称或者adcode，例如"澳门"' }
-                        },
-                        required: ['city']
-                    }
-                }
-            },
-            {
-                type: 'function',
-                function: {
-                    name: 'maps_around_search',
-                    description: '周边搜索，根据用户传入关键词以及坐标location，搜索出radius半径范围的POI',
-                    parameters: {
-                        type: 'object',
-                        properties: {
-                            location: { type: 'string', description: '中心点经度,纬度' },
-                            keywords: { type: 'string', description: '搜索关键词' },
-                            radius: { type: 'string', description: '搜索半径，单位米，默认1000' }
-                        },
-                        required: ['location']
-                    }
-                }
-            }
-        ];
-    }
-
-    jsonp(url) {
-        return new Promise((resolve, reject) => {
-            const callbackName = 'amap_cb_' + Date.now() + '_' + Math.floor(Math.random() * 10000);
-            const script = document.createElement('script');
-            const timeout = setTimeout(() => {
-                cleanup();
-                reject(new Error('高德 API 请求超时'));
-            }, 15000);
-            const cleanup = () => {
-                clearTimeout(timeout);
-                if (script.parentNode) script.parentNode.removeChild(script);
-                delete window[callbackName];
-            };
-            window[callbackName] = (data) => {
-                cleanup();
-                resolve(data);
-            };
-            const separator = url.includes('?') ? '&' : '?';
-            script.src = url + separator + 'callback=' + encodeURIComponent(callbackName);
-            script.onerror = () => {
-                cleanup();
-                reject(new Error('高德 API 加载失败'));
-            };
-            document.head.appendChild(script);
-        });
-    }
-
-    async executeTool(name, args) {
-        if (!this.amapKey) {
-            throw new Error('未配置高德地图 API Key');
-        }
-        const key = this.amapKey;
-        switch (name) {
-            case 'maps_geo': {
-                const url = `https://restapi.amap.com/v3/geocode/geo?key=${key}&address=${encodeURIComponent(args.address)}${args.city ? '&city=' + encodeURIComponent(args.city) : ''}`;
-                const data = await this.jsonp(url);
-                if (data.status !== '1') throw new Error(data.info || '地理编码失败');
-                return JSON.stringify({ geocodes: data.geocodes || [] }, null, 2);
-            }
-            case 'maps_text_search': {
-                const url = `https://restapi.amap.com/v3/place/text?key=${key}&keywords=${encodeURIComponent(args.keywords)}${args.city ? '&city=' + encodeURIComponent(args.city) : ''}${args.types ? '&types=' + encodeURIComponent(args.types) : ''}`;
-                const data = await this.jsonp(url);
-                if (data.status !== '1') throw new Error(data.info || 'POI搜索失败');
-                const pois = (data.pois || []).map(p => ({ id: p.id, name: p.name, address: p.address, location: p.location, typecode: p.typecode }));
-                return JSON.stringify({ pois }, null, 2);
-            }
-            case 'maps_direction_walking': {
-                const url = `https://restapi.amap.com/v3/direction/walking?key=${key}&origin=${encodeURIComponent(args.origin)}&destination=${encodeURIComponent(args.destination)}`;
-                const data = await this.jsonp(url);
-                if (data.status !== '1') throw new Error(data.info || '步行规划失败');
-                return JSON.stringify({ route: data.route || {} }, null, 2);
-            }
-            case 'maps_direction_driving': {
-                const url = `https://restapi.amap.com/v3/direction/driving?key=${key}&origin=${encodeURIComponent(args.origin)}&destination=${encodeURIComponent(args.destination)}`;
-                const data = await this.jsonp(url);
-                if (data.status !== '1') throw new Error(data.info || '驾车规划失败');
-                return JSON.stringify({ route: data.route || {} }, null, 2);
-            }
-            case 'maps_direction_transit_integrated': {
-                const url = `https://restapi.amap.com/v3/direction/transit/integrated?key=${key}&origin=${encodeURIComponent(args.origin)}&destination=${encodeURIComponent(args.destination)}&city=${encodeURIComponent(args.city || '')}&cityd=${encodeURIComponent(args.cityd || '')}`;
-                const data = await this.jsonp(url);
-                if (data.status !== '1') throw new Error(data.info || '公交规划失败');
-                return JSON.stringify({ route: data.route || {} }, null, 2);
-            }
-            case 'maps_distance': {
-                const url = `https://restapi.amap.com/v3/distance?key=${key}&origins=${encodeURIComponent(args.origins)}&destination=${encodeURIComponent(args.destination)}&type=${encodeURIComponent(args.type || '1')}`;
-                const data = await this.jsonp(url);
-                if (data.status !== '1') throw new Error(data.info || '距离测量失败');
-                return JSON.stringify({ results: data.results || [] }, null, 2);
-            }
-            case 'maps_weather': {
-                const url = `https://restapi.amap.com/v3/weather/weatherInfo?key=${key}&city=${encodeURIComponent(args.city)}&extensions=all`;
-                const data = await this.jsonp(url);
-                if (data.status !== '1') throw new Error(data.info || '天气查询失败');
-                return JSON.stringify({ forecasts: (data.forecasts || []).map(f => ({ city: f.city, casts: f.casts })) }, null, 2);
-            }
-            case 'maps_around_search': {
-                const url = `https://restapi.amap.com/v3/place/around?key=${key}&location=${encodeURIComponent(args.location)}${args.keywords ? '&keywords=' + encodeURIComponent(args.keywords) : ''}&radius=${encodeURIComponent(args.radius || '1000')}`;
-                const data = await this.jsonp(url);
-                if (data.status !== '1') throw new Error(data.info || '周边搜索失败');
-                const pois = (data.pois || []).map(p => ({ id: p.id, name: p.name, address: p.address, location: p.location, typecode: p.typecode }));
-                return JSON.stringify({ pois }, null, 2);
-            }
-            default:
-                throw new Error('未知工具: ' + name);
-        }
-    }
-
-    async callLLM() {
-        const url = this.openaiUrl + '/chat/completions';
-        const body = {
-            model: this.modelType,
-            messages: this.messages,
-            temperature: 0.7,
-            top_p: 0.8,
-            stream: false
-        };
-        body.tools = this.getTools();
-        body.tool_choice = 'auto';
-
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': 'Bearer ' + this.openaiKey
-            },
-            body: JSON.stringify(body)
-        });
-        if (!response.ok) {
-            let errInfo = '';
-            try { errInfo = await response.text(); } catch (e) {}
-            throw new Error(`LLM API 错误 ${response.status}: ${errInfo}`);
-        }
-        return await response.json();
-    }
-
-    extractUIActions(text) {
-        const uiActions = [];
-        let resultText = text;
-        const pattern = /\[UI_ACTION\]/g;
-        let match;
-        while ((match = pattern.exec(resultText)) !== null) {
-            const startPos = match.index + match[0].length;
-            let remaining = resultText.slice(startPos);
-            let jsonStart = 0;
-            while (jsonStart < remaining.length && /\s/.test(remaining[jsonStart])) jsonStart++;
-            remaining = remaining.slice(jsonStart);
-            if (remaining.startsWith('{')) {
-                let braceCount = 0;
-                let jsonEnd = 0;
-                for (let i = 0; i < remaining.length; i++) {
-                    if (remaining[i] === '{') braceCount++;
-                    else if (remaining[i] === '}') {
-                        braceCount--;
-                        if (braceCount === 0) { jsonEnd = i + 1; break; }
-                    }
-                }
-                if (jsonEnd > 0) {
-                    const jsonStr = remaining.slice(0, jsonEnd);
-                    try {
-                        uiActions.push(JSON.parse(jsonStr));
-                        resultText = resultText.slice(0, match.index) + resultText.slice(startPos + jsonStart + jsonEnd);
-                        pattern.lastIndex = match.index;
-                    } catch (e) {}
-                }
-            }
-        }
-        return { cleanText: resultText.trim(), uiActions };
-    }
-
-    async *run(userMessage) {
-        this.refreshSettings();
-        if (!this.openaiUrl || !this.openaiKey || !this.modelType) {
-            throw new Error('請先在設置中設定LLM的Base URL、Key和Model');
-        }
-        if (!this.amapKey) {
-            throw new Error('請先在設置中配置高德地圖API Key');
-        }
-
-        yield { type: 'start' };
-
-        if (this.messages.length === 0) {
-            this.messages.push({ role: 'system', content: this.systemMessage });
-        }
-        this.messages.push({ role: 'user', content: userMessage });
-
-        if (this.messages.length > 20) {
-            const systemMsg = this.messages[0];
-            const recent = this.messages.slice(-18);
-            this.messages = [systemMsg, ...recent];
-        }
-
-        const maxIterations = 4;
-        for (let i = 0; i < maxIterations; i++) {
-            const response = await this.callLLM();
-            const choice = response.choices[0];
-            const message = choice.message || {};
-
-            if (message.reasoning_content) {
-                yield { type: 'think', content: message.reasoning_content };
-            }
-
-            if (message.tool_calls && message.tool_calls.length > 0) {
-                this.messages.push({
-                    role: 'assistant',
-                    content: message.content || '',
-                    tool_calls: message.tool_calls.map(tc => ({
-                        id: tc.id,
-                        type: tc.type || 'function',
-                        function: {
-                            name: tc.function.name,
-                            arguments: tc.function.arguments
-                        }
-                    }))
-                });
-
-                for (const tc of message.tool_calls) {
-                    let args;
-                    try {
-                        args = JSON.parse(tc.function.arguments);
-                    } catch (e) {
-                        args = {};
-                    }
-                    yield { type: 'tool_call', content: `${tc.function.name}\n${JSON.stringify(args, null, 2)}` };
-
-                    try {
-                        const result = await this.executeTool(tc.function.name, args);
-                        yield { type: 'tool_response', content: `${tc.function.name}\n${result}` };
-                        this.messages.push({
-                            role: 'tool',
-                            tool_call_id: tc.id,
-                            content: result
-                        });
-                    } catch (err) {
-                        const errText = `Error: ${err.message}`;
-                        yield { type: 'tool_response', content: `${tc.function.name}\n${errText}` };
-                        this.messages.push({
-                            role: 'tool',
-                            tool_call_id: tc.id,
-                            content: errText
-                        });
-                    }
-                }
-                continue;
-            } else {
-                const fullText = message.content || '';
-                let answerText = fullText;
-                answerText = answerText.replace(/\[THINK\][\s\S]*?(?=\[ANSWER\]|\[UI_ACTION\]|$)/, '');
-                const ansMatch = answerText.match(/\[ANSWER\]([\s\S]*)/);
-                if (ansMatch) {
-                    answerText = ansMatch[1];
-                }
-                answerText = answerText.replace(/\[UI_ACTION\][\s\S]*$/, '').trim();
-
-                const chunkSize = 3;
-                const delayMs = 20;
-                for (let idx = 0; idx < answerText.length; idx += chunkSize) {
-                    yield { type: 'answer', content: answerText.slice(idx, idx + chunkSize) };
-                    await new Promise(r => setTimeout(r, delayMs));
-                }
-
-                const { uiActions } = this.extractUIActions(fullText);
-                for (const action of uiActions) {
-                    yield { type: 'ui_action', content: action };
-                }
-
-                this.messages.push({ role: 'assistant', content: fullText });
-                break;
-            }
-        }
-
-        yield { type: 'done' };
-    }
-
-    clearSession() {
-        this.messages = [];
-    }
-}
-
 class ChatController {
     constructor() {
         this.sessionId = this.generateSessionId();
@@ -518,9 +24,6 @@ class ChatController {
         
         // UI动作队列
         this.pendingUIActions = [];
-        
-        // 前端Agent客户端
-        this.agentClient = new AgentClient();
         
         // 设置弹窗相关元素
         this.settingsBtn = document.getElementById('settingsBtn');
@@ -820,10 +323,6 @@ class ChatController {
         localStorage.setItem('travel_macau_agent_settings', JSON.stringify(this.settings));
         this.hideSettingsPopup();
         
-        if (this.agentClient) {
-            this.agentClient.refreshSettings();
-        }
-        
         console.log('[ChatController] 设置已保存到 localStorage');
     }
 
@@ -1023,12 +522,54 @@ class ChatController {
         this.sendBtn.disabled = true;
 
         try {
-            for await (const event of this.agentClient.run(message)) {
-                this.handleStreamEvent(JSON.stringify(event));
+            const response = await fetch('/api/chat', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    session_id: this.sessionId,
+                    message: message
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
             }
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop() || '';
+
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        const data = line.slice(6);
+                        if (data.trim()) {
+                            this.handleStreamEvent(data);
+                        }
+                    }
+                }
+            }
+
+            // 处理剩余数据
+            if (buffer.startsWith('data: ')) {
+                const data = buffer.slice(6);
+                if (data.trim()) {
+                    this.handleStreamEvent(data);
+                }
+            }
+
         } catch (error) {
-            console.error('Agent error:', error);
-            this.addSystemMessage(error.message || '请求失败，请检查网络或API配置');
+            console.error('Stream error:', error);
+            this.addSystemMessage('连接出错，请稍后重试');
         } finally {
             this.isProcessing = false;
             this.sendBtn.disabled = false;
@@ -1257,8 +798,18 @@ class ChatController {
         this.pendingUIActions = [];
         this.previousUIActions = [];
 
-        // 重置前端Agent会话
-        this.agentClient.clearSession();
+        // 通知后端清空会话
+        try {
+            await fetch('/api/clear', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ session_id: this.sessionId })
+            });
+        } catch (e) {
+            console.error('Clear session error:', e);
+        }
 
         // 生成新会话ID
         this.sessionId = this.generateSessionId();
